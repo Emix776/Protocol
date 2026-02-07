@@ -13,7 +13,7 @@ import {
   Pie
 } from "recharts";
 import { calculateEntryScore } from "@/lib/scoring";
-import { Loader2, TrendingUp, Award, BookOpen, Brain } from "lucide-react";
+import { Loader2, TrendingUp, Award, BookOpen, Brain, BarChart3 } from "lucide-react";
 import { format, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
 
