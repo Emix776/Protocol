@@ -1,0 +1,735 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  CheckCircle2, 
+  BarChart3, 
+  Calendar, 
+  BookOpen, 
+  Trophy, 
+  Clock, 
+  ArrowLeft, 
+  ArrowRight, 
+  RotateCcw,
+  Hand,
+  Timer,
+  Star,
+  Eye,
+  TrendingUp
+} from 'lucide-react';
+
+// --- DATA & CONFIGURATION ---
+
+const WEEK_DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
+const QUALITY_LEVELS = [
+  { value: 0, label: 'Wiederholung', icon: '○', color: 'slate' },
+  { value: 1, label: 'Sinnvoll', icon: '◐', color: 'blue' },
+  { value: 2, label: 'Transfer', icon: '◕', color: 'indigo' },
+  { value: 3, label: 'Exzellent', icon: '●', color: 'violet' }
+];
+
+const SELF_ASSESSMENT_LABELS = [
+  { value: 1, emoji: '😰', label: 'Schwach' },
+  { value: 2, emoji: '😕', label: 'Unterdurchschnittlich' },
+  { value: 3, emoji: '😐', label: 'OK' },
+  { value: 4, emoji: '🙂', label: 'Gut' },
+  { value: 5, emoji: '😊', label: 'Sehr gut' }
+];
+
+// --- COMPONENT ---
+
+export default function App() {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [isWeekA, setIsWeekA] = useState(true);
+  const [activeTab, setActiveTab] = useState('tracker'); 
+  
+  // State for daily tracking data
+  // Wir prüfen beim Start, ob schon Daten im Browser-Speicher liegen
+const [trackerData, setTrackerData] = useState(() => {
+  const savedData = localStorage.getItem('school_performance_data');
+  // Wenn ja: Umwandeln von Text zurück in ein Objekt. Wenn nein: Leeres Objekt {}
+  return savedData ? JSON.parse(savedData) : {};
+});
+
+useEffect(() => {
+  // Immer wenn sich 'trackerData' ändert, schreiben wir es in den Local Storage
+  localStorage.setItem('school_performance_data', JSON.stringify(trackerData));
+}, [trackerData]);
+  
+
+  // Get all unique subjects from all tracked data
+  const getAllSubjects = () => {
+    const subjects = new Set();
+    Object.keys(trackerData).forEach(key => {
+      const subjectId = key.split('-').slice(1).join('-'); // Remove date part
+      // Get subject info from schedule
+      for (let i = 1; i <= 5; i++) {
+        const schedule = getScheduleForDay(new Date(2025, 0, i + 5), true); // Sample week
+        const found = schedule.find(s => s.id === subjectId);
+        if (found && found.type !== 'break') {
+          subjects.add(JSON.stringify({ id: subjectId, name: found.subject }));
+        }
+      }
+      // Also check week B
+      for (let i = 1; i <= 5; i++) {
+        const schedule = getScheduleForDay(new Date(2025, 0, i + 12), false);
+        const found = schedule.find(s => s.id === subjectId);
+        if (found && found.type !== 'break') {
+          subjects.add(JSON.stringify({ id: subjectId, name: found.subject }));
+        }
+      }
+    });
+    return Array.from(subjects).map(s => JSON.parse(s));
+  };
+
+  // Calculate statistics for a specific subject
+  const getSubjectStats = (subjectName) => {
+    const entries = Object.entries(trackerData).filter(([key, data]) => {
+      const subjectId = key.split('-').slice(1).join('-');
+      // Find subject name from any schedule
+      for (let i = 1; i <= 5; i++) {
+        const schedule = getScheduleForDay(new Date(2025, 0, i + 5), true);
+        const found = schedule.find(s => s.id === subjectId);
+        if (found && found.subject === subjectName) return true;
+        
+        const scheduleB = getScheduleForDay(new Date(2025, 0, i + 12), false);
+        const foundB = scheduleB.find(s => s.id === subjectId);
+        if (foundB && foundB.subject === subjectName) return true;
+      }
+      return false;
+    });
+
+    if (entries.length === 0) return null;
+
+    let totalScore = 0;
+    let homeworkCount = 0;
+    let questionCount = 0;
+    let totalContributions = 0;
+    let qualitySum = 0;
+    let earlyCount = 0;
+    let assessmentSum = 0;
+
+    entries.forEach(([key, data]) => {
+      let score = 0;
+      if (data.homework) {
+        score += 25;
+        homeworkCount++;
+      }
+      if (data.question) {
+        score += 15;
+        questionCount++;
+      }
+      score += Math.min(data.contributions || 0, 3) * 10;
+      totalContributions += data.contributions || 0;
+      score += (data.qualityLevel || 0) * 5;
+      qualitySum += data.qualityLevel || 0;
+      if (data.earlyContribution) {
+        score += 5;
+        earlyCount++;
+      }
+      score += (data.selfAssessment || 0) * 2;
+      assessmentSum += data.selfAssessment || 0;
+      
+      totalScore += score;
+    });
+
+    const avgScore = Math.round((totalScore / (entries.length * 100)) * 100);
+    const avgContributions = (totalContributions / entries.length).toFixed(1);
+    const avgQuality = (qualitySum / entries.length).toFixed(1);
+    const avgAssessment = (assessmentSum / entries.length).toFixed(1);
+    const homeworkRate = Math.round((homeworkCount / entries.length) * 100);
+    const questionRate = Math.round((questionCount / entries.length) * 100);
+    const earlyRate = Math.round((earlyCount / entries.length) * 100);
+
+    return {
+      sessions: entries.length,
+      avgScore,
+      homeworkRate,
+      questionRate,
+      avgContributions,
+      avgQuality,
+      earlyRate,
+      avgAssessment
+    };
+  };
+
+  // Helper to format date key
+  const getDateKey = (date) => date.toISOString().split('T')[0];
+
+  // --- TIMETABLE LOGIC ---
+
+  const getScheduleForDay = (date, weekA) => {
+    const dayIndex = date.getDay();
+    
+    switch (dayIndex) {
+      case 1: // Montag
+        return [
+          { id: 'mo-1', subject: 'Erdkunde LK', teacher: 'MNG3', room: 'LK4', time: '1. - 2. Std', type: 'double' },
+          { id: 'mo-2', subject: 'Mathe LK', teacher: 'RE', room: 'B 208', time: '3. - 4. Std', type: 'double' },
+          { id: 'mo-3', subject: 'Deutsch GK', teacher: 'SL', room: 'B 209', time: '5. - 6. Std', type: 'double' },
+          { id: 'mo-4', subject: 'Reli GK', teacher: 'BL', room: 'A 211', time: '7. Std', type: 'single' },
+        ];
+      case 2: // Dienstag
+        return [
+          { id: 'di-1', subject: 'Informatik GK', teacher: 'DV', room: 'B 113', time: '1. - 2. Std', type: 'double' },
+          { id: 'di-free', subject: 'Freistunde', teacher: '-', room: '-', time: '3. - 4. Std', type: 'break' },
+          { id: 'di-3', subject: 'Kunst GK', teacher: 'PF', room: 'B 008', time: '5. Std', type: 'single' },
+          { id: 'di-4', subject: 'Englisch GK', teacher: 'SI', room: 'B 207', time: '6. Std', type: 'single' },
+        ];
+      case 3: // Mittwoch
+        return [
+          { id: 'mi-1', subject: 'Englisch GK', teacher: 'SI', room: 'B 206', time: '1. - 2. Std', type: 'double' },
+          { id: 'mi-2', subject: 'Reli GK', teacher: 'BL', room: 'A 211', time: '3. - 4. Std', type: 'double' },
+          { id: 'mi-3', subject: 'Bio GK', teacher: 'WÜ', room: 'C 008', time: '5. - 6. Std', type: 'double' },
+          { id: 'mi-4', subject: 'Geschichte GK', teacher: 'BM', room: 'B 208', time: '7. Std', type: 'single' }, 
+        ];
+      case 4: // Donnerstag
+        return [
+          { id: 'do-1', subject: 'Mathe LK', teacher: 'RE', room: 'B 208', time: '1. - 2. Std', type: 'double' },
+          { id: 'do-2', subject: 'Erdkunde LK', teacher: 'MNG3', room: 'LK4', time: '3. - 4. Std', type: 'double' },
+          { id: 'do-3', subject: 'Kunst GK', teacher: 'PF', room: 'B 008', time: '5. - 6. Std', type: 'double' },
+          { id: 'do-4', subject: 'Bio GK', teacher: 'WÜ', room: 'C 008', time: '7. Std', type: 'single' },
+        ];
+      case 5: // Freitag
+        if (weekA) {
+          return [
+            { id: 'fr-1', subject: 'Mathe LK', teacher: 'RE', room: 'B 208', time: '1. - 2. Std', type: 'double' },
+            { id: 'fr-2', subject: 'Geschichte GK', teacher: 'BM', room: 'B 208', time: '3. - 4. Std', type: 'double' },
+            { id: 'fr-3', subject: 'Informatik GK', teacher: 'DV', room: 'B 113', time: '5. - 6. Std (A)', type: 'double' }
+          ];
+        } else {
+          return [
+            { id: 'fr-1', subject: 'Erdkunde LK', teacher: 'MNG3', room: 'LK4', time: '1. - 2. Std', type: 'double' },
+            { id: 'fr-2', subject: 'Geschichte GK', teacher: 'BM', room: 'B 208', time: '3. - 4. Std', type: 'double' },
+            { id: 'fr-3', subject: 'Deutsch GK', teacher: 'SL', room: 'B 209', time: '5. - 6. Std (B)', type: 'double' }
+          ];
+        }
+      default:
+        return []; 
+    }
+  };
+
+  const currentSchedule = getScheduleForDay(currentDate, isWeekA);
+  const dateKey = getDateKey(currentDate);
+
+  // --- HANDLERS ---
+
+  const updateStat = (subjectId, field, value) => {
+    setTrackerData(prev => {
+      const key = `${dateKey}-${subjectId}`;
+      const current = prev[key] || { 
+        contributions: 0, 
+        homework: false, 
+        question: false,
+        qualityLevel: 0,
+        earlyContribution: false,
+        selfAssessment: 0
+      };
+      
+      let newData;
+      if (field === 'contributions') {
+        const newVal = current.contributions + value;
+        newData = { ...current, contributions: newVal < 0 ? 0 : newVal };
+      } else {
+        newData = { ...current, [field]: value };
+      }
+
+      return { ...prev, [key]: newData };
+    });
+  };
+
+  const changeDay = (offset) => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + offset);
+    setCurrentDate(newDate);
+  };
+
+  const getSubjectData = (subjectId) => {
+    return trackerData[`${dateKey}-${subjectId}`] || { 
+      contributions: 0, 
+      homework: false, 
+      question: false,
+      qualityLevel: 0,
+      earlyContribution: false,
+      selfAssessment: 0
+    };
+  };
+
+  const calculateDailyScore = () => {
+    let totalPoints = 0;
+    let maxPoints = 0;
+
+    currentSchedule.forEach(sub => {
+      if (sub.type === 'break') return;
+      const data = getSubjectData(sub.id);
+      
+      // Only count subjects where student actually participated
+      const hasParticipation = data.homework || data.question || data.contributions > 0 || 
+                               data.qualityLevel > 0 || data.earlyContribution || data.selfAssessment > 0;
+      
+      if (!hasParticipation) return; // Don't count empty subjects
+      
+      maxPoints += 100; 
+      let subPoints = 0;
+      
+      // Hausaufgaben (25 Punkte) - Basis für gute Note
+      if (data.homework) subPoints += 25;
+      
+      // Qualitative Frage (15 Punkte) - Zeigt aktive Mitarbeit
+      if (data.question) subPoints += 15;
+      
+      // Beiträge (bis zu 30 Punkte: 3 Beiträge × 10 Punkte)
+      // Realistischer: 2-3 gute Beiträge pro Stunde
+      subPoints += Math.min(data.contributions, 3) * 10;
+      
+      // Qualitätslevel (bis zu 15 Punkte: Level 3 × 5 Punkte)
+      // Ein guter Beitrag (Level 2) = 10 Punkte
+      subPoints += data.qualityLevel * 5;
+      
+      // Early Contribution Bonus (5 Punkte) - Kleiner Bonus
+      if (data.earlyContribution) subPoints += 5;
+      
+      // Self Assessment (bis zu 10 Punkte: 5 × 2 Punkte)
+      // Realistische Selbsteinschätzung wird belohnt
+      subPoints += data.selfAssessment * 2;
+      
+      totalPoints += subPoints;
+    });
+
+    return maxPoints === 0 ? 0 : Math.round((totalPoints / maxPoints) * 100);
+  };
+
+  const dailyScore = calculateDailyScore();
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
+      
+      {/* HEADER */}
+      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-10">
+        <div className="max-w-md mx-auto px-4 py-4">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+              School Performance Tracker
+            </h1>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setActiveTab('tracker')}
+                className={`p-2 rounded-lg transition-colors ${activeTab === 'tracker' ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}
+              >
+                <CheckCircle2 size={20} />
+              </button>
+              <button 
+                onClick={() => setActiveTab('statistics')}
+                className={`p-2 rounded-lg transition-colors ${activeTab === 'statistics' ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}
+              >
+                <BarChart3 size={20} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center bg-slate-900/50 p-2 rounded-xl border border-slate-700">
+            <button onClick={() => changeDay(-1)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="text-center">
+              <div className="text-sm font-medium text-slate-200">{WEEK_DAYS[currentDate.getDay()]}</div>
+              <div className="text-xs text-slate-500">{currentDate.toLocaleDateString('de-DE')}</div>
+            </div>
+            <button onClick={() => changeDay(1)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400">
+              <ArrowRight size={18} />
+            </button>
+          </div>
+
+          {currentDate.getDay() === 5 && (
+            <div 
+              onClick={() => setIsWeekA(!isWeekA)}
+              className="mt-3 flex items-center justify-center gap-2 text-xs bg-indigo-900/30 text-indigo-300 py-1 px-3 rounded-full cursor-pointer border border-indigo-500/30 hover:bg-indigo-900/50 transition-all"
+            >
+              <RotateCcw size={12} />
+              <span>Modus: {isWeekA ? 'Woche A (Informatik)' : 'Woche B (Deutsch)'}</span>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <main className="max-w-md mx-auto px-4 py-6 pb-24">
+        {activeTab === 'tracker' ? (
+          <>
+            {currentSchedule.length > 0 && (
+               <div className="mb-6 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-5 text-white shadow-lg shadow-indigo-900/20 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                 <div className="flex justify-between items-end relative z-10">
+                   <div>
+                     <p className="text-indigo-200 text-sm font-medium mb-1">Tages Performance</p>
+                     <h2 className="text-3xl font-bold">{dailyScore}%</h2>
+                   </div>
+                   <Trophy size={32} className="text-indigo-200 opacity-80" />
+                 </div>
+                 <div className="mt-4 h-2 bg-black/20 rounded-full overflow-hidden">
+                   <div className="h-full bg-white/90 rounded-full transition-all duration-500 ease-out" style={{ width: `${Math.min(dailyScore, 100)}%` }} />
+                 </div>
+                 <p className="text-xs text-indigo-200 mt-2 text-right">Ziel: {'>'}80%</p>
+               </div>
+            )}
+
+            <div className="space-y-4">
+              {currentSchedule.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                  <p>Keine Schule heute.</p>
+                </div>
+              ) : (
+                currentSchedule.map((subject) => (
+                  <SubjectCard 
+                    key={subject.id} 
+                    subject={subject} 
+                    data={getSubjectData(subject.id)}
+                    onUpdate={updateStat}
+                  />
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          <StatisticsView 
+            getAllSubjects={getAllSubjects}
+            getSubjectStats={getSubjectStats}
+            trackerData={trackerData}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function SubjectCard({ subject, data, onUpdate }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const isBreak = subject.type === 'break';
+  const isDouble = subject.type === 'double';
+
+  if (isBreak) {
+    return (
+      <div className="flex items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-700 bg-slate-800/30 text-slate-500 text-sm">
+        <Clock size={16} className="mr-2" />
+        Freistunde ({subject.time})
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden transition-all hover:border-slate-600">
+      <div className="p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-start">
+        <div>
+          <h3 className="font-bold text-slate-100 flex items-center gap-2">
+            {subject.subject}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-bold ${isDouble ? 'bg-indigo-900 text-indigo-300' : 'bg-slate-700 text-slate-300'}`}>
+              {isDouble ? 'Doppel' : 'Einzel'}
+            </span>
+          </h3>
+          <div className="flex gap-3 text-xs text-slate-400 mt-1">
+            <span className="flex items-center gap-1"><Clock size={12}/> {subject.time}</span>
+            <span className="flex items-center gap-1"><BookOpen size={12}/> {subject.room}</span>
+          </div>
+        </div>
+        <div className="text-xs font-mono bg-slate-900 text-slate-400 px-2 py-1 rounded">
+          {subject.teacher}
+        </div>
+      </div>
+
+      {/* Basic Tracking */}
+      <div className="p-4 grid grid-cols-2 gap-4">
+        <div className="space-y-3">
+          <button 
+            onClick={() => onUpdate(subject.id, 'homework', !data.homework)}
+            className={`w-full flex items-center gap-2 text-xs p-2 rounded-lg border transition-all ${data.homework ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-300' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+          >
+            <div className={`w-4 h-4 rounded border flex items-center justify-center ${data.homework ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'}`}>
+              {data.homework && <CheckCircle2 size={10} className="text-white" />}
+            </div>
+            <span>Hausaufgaben</span>
+          </button>
+          <button 
+            onClick={() => onUpdate(subject.id, 'question', !data.question)}
+            className={`w-full flex items-center gap-2 text-xs p-2 rounded-lg border transition-all ${data.question ? 'bg-blue-900/30 border-blue-500/50 text-blue-300' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+          >
+            <div className={`w-4 h-4 rounded border flex items-center justify-center ${data.question ? 'bg-blue-500 border-blue-500' : 'border-slate-600'}`}>
+              {data.question && <CheckCircle2 size={10} className="text-white" />}
+            </div>
+            <span>Qual. Frage</span>
+          </button>
+        </div>
+
+        <div className="bg-slate-900 rounded-lg p-3 flex flex-col items-center justify-between border border-slate-700">
+          <span className="text-xs text-slate-400 font-medium mb-2 flex items-center gap-1">
+            <Hand size={12} /> Meldungen
+          </span>
+          <div className="flex items-center gap-3 w-full justify-between">
+            <button onClick={() => onUpdate(subject.id, 'contributions', -1)} className="w-8 h-8 flex items-center justify-center rounded bg-slate-800 text-slate-400 hover:bg-slate-700 border border-slate-700">-</button>
+            <span className={`text-xl font-bold ${data.contributions > 0 ? 'text-indigo-400' : 'text-slate-600'}`}>{data.contributions}</span>
+            <button onClick={() => onUpdate(subject.id, 'contributions', 1)} className="w-8 h-8 flex items-center justify-center rounded bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/20">+</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Tracking Toggle */}
+      <div className="px-4 pb-3">
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="w-full text-xs text-slate-400 hover:text-slate-300 flex items-center justify-center gap-2 py-2 border-t border-slate-700 transition-colors"
+        >
+          <Star size={12} />
+          <span>{showAdvanced ? 'Weniger Details' : 'Erweiterte Bewertung'}</span>
+        </button>
+      </div>
+
+      {/* Advanced Tracking Section */}
+      {showAdvanced && (
+        <div className="px-4 pb-4 space-y-4 border-t border-slate-700 pt-4">
+          
+          {/* Quality Level */}
+          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Star size={14} className="text-violet-400" />
+              <span className="text-xs font-medium text-slate-300">Beitragsqualität</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {QUALITY_LEVELS.map((level) => (
+                <button
+                  key={level.value}
+                  onClick={() => onUpdate(subject.id, 'qualityLevel', level.value)}
+                  className={`p-2 rounded-lg text-center transition-all border ${
+                    data.qualityLevel === level.value
+                      ? `bg-${level.color}-900/30 border-${level.color}-500/50 text-${level.color}-300`
+                      : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="text-lg mb-1">{level.icon}</div>
+                  <div className="text-[9px] leading-tight">{level.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Early Contribution */}
+          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+            <button
+              onClick={() => onUpdate(subject.id, 'earlyContribution', !data.earlyContribution)}
+              className={`w-full flex items-center justify-between text-xs p-2 rounded-lg border transition-all ${
+                data.earlyContribution
+                  ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <TrendingUp size={14} />
+                <span>Frühe Mitarbeit (1. Hälfte)</span>
+              </div>
+              <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                data.earlyContribution ? 'bg-cyan-500 border-cyan-500' : 'border-slate-600'
+              }`}>
+                {data.earlyContribution && <CheckCircle2 size={10} className="text-white" />}
+              </div>
+            </button>
+          </div>
+
+          {/* Self Assessment */}
+          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Eye size={14} className="text-amber-400" />
+              <span className="text-xs font-medium text-slate-300">Lehrerperspektive (Selbsteinschätzung)</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1">
+              {SELF_ASSESSMENT_LABELS.map((assessment) => (
+                <button
+                  key={assessment.value}
+                  onClick={() => onUpdate(subject.id, 'selfAssessment', assessment.value)}
+                  className={`p-2 rounded-lg text-center transition-all border ${
+                    data.selfAssessment === assessment.value
+                      ? 'bg-amber-900/30 border-amber-500/50 text-amber-300 scale-105'
+                      : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600'
+                  }`}
+                  title={assessment.label}
+                >
+                  <div className="text-xl">{assessment.emoji}</div>
+                  <div className="text-[8px] mt-1">{assessment.value}</div>
+                </button>
+              ))}
+            </div>
+            {data.selfAssessment > 0 && (
+              <p className="text-xs text-center text-slate-400 mt-2">
+                {SELF_ASSESSMENT_LABELS[data.selfAssessment - 1].label}
+              </p>
+            )}
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatisticsView({ getAllSubjects, getSubjectStats, trackerData }) {
+  // Get unique subject names
+  const subjectNames = [...new Set(
+    Object.keys(trackerData).map(key => {
+      const subjectId = key.split('-').slice(1).join('-');
+      // Find subject name from schedules
+      const schedules = [
+        ...Array(5).fill(0).flatMap((_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          return [
+            ...(getScheduleForDay(date, true) || []),
+            ...(getScheduleForDay(date, false) || [])
+          ];
+        })
+      ];
+      const found = schedules.find(s => s.id === subjectId);
+      return found?.subject;
+    }).filter(Boolean)
+  )];
+
+  // Helper function to get schedule for a date
+  function getScheduleForDay(date, weekA) {
+    const dayIndex = date.getDay();
+    
+    switch (dayIndex) {
+      case 1: return [
+        { id: 'mo-1', subject: 'Erdkunde LK' }, { id: 'mo-2', subject: 'Mathe LK' },
+        { id: 'mo-3', subject: 'Deutsch GK' }, { id: 'mo-4', subject: 'Reli GK' }
+      ];
+      case 2: return [
+        { id: 'di-1', subject: 'Informatik GK' }, { id: 'di-3', subject: 'Kunst GK' },
+        { id: 'di-4', subject: 'Englisch GK' }
+      ];
+      case 3: return [
+        { id: 'mi-1', subject: 'Englisch GK' }, { id: 'mi-2', subject: 'Reli GK' },
+        { id: 'mi-3', subject: 'Bio GK' }, { id: 'mi-4', subject: 'Geschichte GK' }
+      ];
+      case 4: return [
+        { id: 'do-1', subject: 'Mathe LK' }, { id: 'do-2', subject: 'Erdkunde LK' },
+        { id: 'do-3', subject: 'Kunst GK' }, { id: 'do-4', subject: 'Bio GK' }
+      ];
+      case 5: return weekA ? [
+        { id: 'fr-1', subject: 'Mathe LK' }, { id: 'fr-2', subject: 'Geschichte GK' },
+        { id: 'fr-3', subject: 'Informatik GK' }
+      ] : [
+        { id: 'fr-1', subject: 'Erdkunde LK' }, { id: 'fr-2', subject: 'Geschichte GK' },
+        { id: 'fr-3', subject: 'Deutsch GK' }
+      ];
+      default: return [];
+    }
+  }
+
+  const getGradeColor = (score) => {
+    if (score >= 90) return 'text-emerald-400';
+    if (score >= 80) return 'text-green-400';
+    if (score >= 70) return 'text-yellow-400';
+    if (score >= 60) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  const getGradeLabel = (score) => {
+    if (score >= 95) return '1+';
+    if (score >= 90) return '1';
+    if (score >= 85) return '1-';
+    if (score >= 80) return '2+';
+    if (score >= 75) return '2';
+    if (score >= 70) return '2-';
+    if (score >= 65) return '3+';
+    if (score >= 60) return '3';
+    if (score >= 55) return '3-';
+    if (score >= 50) return '4+';
+    return '4-';
+  };
+
+  if (subjectNames.length === 0) {
+    return (
+      <div className="text-center py-12 text-slate-500">
+        <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-20" />
+        <p>Noch keine Daten vorhanden.</p>
+        <p className="text-xs mt-2">Tracke deine erste Stunde um Statistiken zu sehen!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl p-5 text-white shadow-lg">
+        <h2 className="text-lg font-bold mb-2">📊 Fach-Übersicht</h2>
+        <p className="text-sm text-violet-200">Hier siehst du deine Performance in jedem Fach</p>
+      </div>
+
+      {subjectNames.sort().map(subjectName => {
+        const stats = getSubjectStats(subjectName);
+        if (!stats) return null;
+
+        return (
+          <div key={subjectName} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="p-4 bg-slate-800/50 border-b border-slate-700">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-bold text-slate-100">{subjectName}</h3>
+                <div className="text-right">
+                  <div className={`text-2xl font-bold ${getGradeColor(stats.avgScore)}`}>
+                    {stats.avgScore}%
+                  </div>
+                  <div className="text-xs text-slate-400">≈ {getGradeLabel(stats.avgScore)}</div>
+                </div>
+              </div>
+              <div className="text-xs text-slate-400">{stats.sessions} Stunden getrackt</div>
+            </div>
+
+            <div className="p-4 grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                <div className="text-slate-400 mb-1">Hausaufgaben</div>
+                <div className="text-lg font-bold text-emerald-400">{stats.homeworkRate}%</div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                <div className="text-slate-400 mb-1">Qual. Fragen</div>
+                <div className="text-lg font-bold text-blue-400">{stats.questionRate}%</div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                <div className="text-slate-400 mb-1">Ø Meldungen</div>
+                <div className="text-lg font-bold text-indigo-400">{stats.avgContributions}</div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                <div className="text-slate-400 mb-1">Ø Qualität</div>
+                <div className="text-lg font-bold text-violet-400">{stats.avgQuality}/3</div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                <div className="text-slate-400 mb-1">Frühe Mitarbeit</div>
+                <div className="text-lg font-bold text-cyan-400">{stats.earlyRate}%</div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                <div className="text-slate-400 mb-1">Ø Selbsteinschätzung</div>
+                <div className="text-lg font-bold text-amber-400">{stats.avgAssessment}/5</div>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="px-4 pb-4">
+              <div className="h-2 bg-slate-900 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    stats.avgScore >= 80 ? 'bg-green-500' : 
+                    stats.avgScore >= 70 ? 'bg-yellow-500' : 'bg-orange-500'
+                  }`}
+                  style={{ width: `${Math.min(stats.avgScore, 100)}%` }}
+                />
+              </div>
+              {stats.avgScore < 80 && (
+                <p className="text-xs text-center text-slate-500 mt-2">
+                  Noch {80 - stats.avgScore}% bis zur 2+
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
