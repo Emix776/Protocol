@@ -33,7 +33,8 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
     contributions: 0,
     qualityLevel: 0,
     earlyContribution: false,
-    selfAssessment: 0
+    selfAssessment: 0,
+    isCancelled: false
   });
 
   useEffect(() => {
@@ -44,7 +45,8 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
         contributions: entry.contributions,
         qualityLevel: entry.qualityLevel,
         earlyContribution: entry.earlyContribution,
-        selfAssessment: entry.selfAssessment
+        selfAssessment: entry.selfAssessment,
+        isCancelled: entry.isCancelled
       });
     } else {
       setFormData({
@@ -53,7 +55,8 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
         contributions: 0,
         qualityLevel: 0,
         earlyContribution: false,
-        selfAssessment: 0
+        selfAssessment: 0,
+        isCancelled: false
       });
     }
   }, [entry]);
@@ -84,19 +87,33 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
   }
 
   return (
-    <div className="glass-card rounded-xl overflow-hidden transition-all duration-300">
+    <div className={cn(
+      "glass-card rounded-xl overflow-hidden transition-all duration-300",
+      formData.isCancelled && "opacity-60 grayscale-[0.5] border-slate-700/50"
+    )}>
       {/* Header - Always Visible */}
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
         className="p-4 cursor-pointer hover:bg-white/5 transition-colors flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold shadow-inner">
+          <div className={cn(
+            "w-12 h-12 rounded-lg flex items-center justify-center font-bold shadow-inner transition-colors",
+            formData.isCancelled ? "bg-slate-700 text-slate-400" : "bg-primary/10 text-primary"
+          )}>
             {item.subject.slice(0, 2)}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+            <h3 className={cn(
+              "text-lg font-semibold transition-colors",
+              formData.isCancelled ? "text-slate-400 line-through decoration-slate-500/50" : "text-foreground group-hover:text-primary"
+            )}>
               {item.subject}
+              {formData.isCancelled && (
+                <span className="ml-2 text-xs font-bold uppercase tracking-widest text-slate-500 no-underline inline-block py-0.5 px-1.5 bg-slate-800 rounded">
+                  Ausfall
+                </span>
+              )}
             </h3>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <span className="font-mono">{item.time}</span>
@@ -110,8 +127,8 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <span className={cn("text-2xl font-bold font-display", scoreColor)}>
-              {score}
+            <span className={cn("text-2xl font-bold font-display", formData.isCancelled ? "text-slate-500" : scoreColor)}>
+              {formData.isCancelled ? "-" : score}
             </span>
             <span className="text-xs text-muted-foreground block uppercase tracking-wider font-semibold">
               Punkte
@@ -137,7 +154,40 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
           >
             <div className="p-4 space-y-6">
               
-              {/* Toggles Row */}
+              {/* Status Row */}
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-card/50 border-border/50">
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    formData.isCancelled ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                  )} />
+                  <span className="text-sm font-semibold uppercase tracking-wider">
+                    Status: {formData.isCancelled ? "Ausfall" : "Regulär"}
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUpdate({ isCancelled: !formData.isCancelled });
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-widest transition-all",
+                    formData.isCancelled 
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30" 
+                      : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                  )}
+                >
+                  {formData.isCancelled ? "Reaktivieren" : "Als Ausfall markieren"}
+                </button>
+              </div>
+
+              {!formData.isCancelled && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }}
+                  className="space-y-6"
+                >
+                  {/* Toggles Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   onClick={() => handleUpdate({ homework: !formData.homework })}
@@ -275,6 +325,9 @@ export function SubjectCard({ item, date, entry }: SubjectCardProps) {
                   })}
                 </div>
               </div>
+
+                </motion.div>
+              )}
 
             </div>
           </motion.div>

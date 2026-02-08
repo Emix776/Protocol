@@ -30,6 +30,7 @@ export class DatabaseStorage implements IStorage {
           qualityLevel: entry.qualityLevel,
           earlyContribution: entry.earlyContribution,
           selfAssessment: entry.selfAssessment,
+          isCancelled: entry.isCancelled,
         }
       })
       .returning();

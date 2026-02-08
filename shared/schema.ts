@@ -15,6 +15,7 @@ export const dailyEntries = pgTable("daily_entries", {
   qualityLevel: integer("quality_level").default(0).notNull(),
   earlyContribution: boolean("early_contribution").default(false).notNull(),
   selfAssessment: integer("self_assessment").default(0).notNull(),
+  isCancelled: boolean("is_cancelled").default(false).notNull(),
 }, (t) => ({
   // Ensure one entry per subject per day
   unq: unique().on(t.date, t.subjectId),

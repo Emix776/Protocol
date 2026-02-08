@@ -7,6 +7,7 @@ interface EntryData {
   qualityLevel: number;
   earlyContribution: boolean;
   selfAssessment: number;
+  isCancelled: boolean;
 }
 
 export const MAX_DAILY_SCORE_POINTS = 
@@ -19,6 +20,8 @@ export const MAX_DAILY_SCORE_POINTS =
   // Total: 100
 
 export function calculateEntryScore(entry: EntryData): number {
+  if (entry.isCancelled) return 0;
+  
   let score = 0;
   
   if (entry.homework) score += 25;

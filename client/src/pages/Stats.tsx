@@ -40,6 +40,7 @@ export default function Stats() {
     const dailyScores: Record<string, { date: string; score: number; count: number }> = {};
     
     entries.forEach(entry => {
+      if (entry.isCancelled) return;
       const score = calculateEntryScore(entry);
       totalPoints += score;
       maxPossiblePoints += 100;
@@ -69,6 +70,7 @@ export default function Stats() {
     const subjectScores: Record<string, { total: number; count: number }> = {};
     
     entries.forEach(entry => {
+      if (entry.isCancelled) return;
       // Very rough parsing: "mo-1" -> "Montag 1" etc. or we just group by prefix if available
       // Ideally we need the subject map. For now, let's just use the raw Subject ID or simplified
       const id = entry.subjectId; 

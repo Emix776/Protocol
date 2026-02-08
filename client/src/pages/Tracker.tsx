@@ -22,11 +22,15 @@ export default function Tracker() {
   const totalScore = schedule.reduce((acc, item) => {
     if (item.type === 'break') return acc;
     const entry = entries?.find(e => e.subjectId === item.id);
-    if (!entry) return acc;
+    if (!entry || entry.isCancelled) return acc;
     return acc + calculateEntryScore(entry);
   }, 0);
 
-  const maxPossible = schedule.filter(i => i.type !== 'break').length * 100;
+  const maxPossible = schedule.filter(i => {
+    if (i.type === 'break') return false;
+    const entry = entries?.find(e => e.subjectId === i.id);
+    return !entry?.isCancelled;
+  }).length * 100;
   const progress = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
 
   const handlePrevDay = () => setCurrentDate(subDays(currentDate, 1));
