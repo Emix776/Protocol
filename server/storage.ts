@@ -1,10 +1,11 @@
 import { db } from "./db";
-import { dailyEntries, type DailyEntry, type InsertDailyEntry } from "@shared/schema";
-import { and, gte, lte, eq, sql } from "drizzle-orm";
+import { dailyEntries, type DailyEntry, type InsertDailyEntry, schedules, timetableVersions, type Schedule } from "@shared/schema";
+import { and, gte, lte, eq, sql, desc } from "drizzle-orm";
 
 export interface IStorage {
   getEntries(from?: string, to?: string): Promise<DailyEntry[]>;
   upsertEntry(entry: InsertDailyEntry): Promise<DailyEntry>;
+  getScheduleForDate(date: string): Promise<Schedule[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -35,6 +36,21 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return result;
+  }
+
+  async getScheduleForDate(date: string): Promise<Schedule[]> {
+    // Find the latest version where effectiveDate <= date
+    const [version] = await db.select()
+      .from(timetableVersions)
+      .where(lte(timetableVersions.effectiveDate, date))
+      .orderBy(desc(timetableVersions.effectiveDate))
+      .limit(1);
+
+    if (!version) return [];
+
+    return await db.select()
+      .from(schedules)
+      .where(eq(schedules.versionId, version.id));
   }
 }
 

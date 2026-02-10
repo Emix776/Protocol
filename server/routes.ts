@@ -42,5 +42,23 @@ export async function registerRoutes(
     }
   });
 
+  // GET schedule for date
+  app.get(api.schedules.list.path, async (req, res) => {
+    try {
+      const { date } = api.schedules.list.input.parse(req.query);
+      const schedule = await storage.getScheduleForDate(date);
+      res.json(schedule);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      console.error('Error fetching schedule:', err);
+      res.status(500).json({ message: "Failed to fetch schedule" });
+    }
+  });
+
   return httpServer;
 }

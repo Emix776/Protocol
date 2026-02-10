@@ -47,3 +47,20 @@ export function useSyncEntry() {
     },
   });
 }
+
+// GET /api/schedules
+export function useSchedule(date: string) {
+  const queryKey = [api.schedules.list.path, date];
+  
+  return useQuery({
+    queryKey,
+    queryFn: async () => {
+      const url = new URL(api.schedules.list.path, window.location.origin);
+      url.searchParams.append("date", date);
+      
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch schedule");
+      return api.schedules.list.responses[200].parse(await res.json());
+    },
+  });
+}

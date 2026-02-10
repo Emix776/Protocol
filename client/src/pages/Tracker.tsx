@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format, addDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ToggleLeft, ToggleRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ToggleLeft, ToggleRight, Loader2 } from "lucide-react";
 import { SubjectCard } from "@/components/SubjectCard";
-import { useEntries } from "@/hooks/use-entries";
-import { getScheduleForDay, WEEK_DAYS } from "@/lib/constants";
+import { useEntries, useSchedule } from "@/hooks/use-entries";
+import { WEEK_DAYS } from "@/lib/constants";
 import { calculateEntryScore } from "@/lib/scoring";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -15,9 +15,30 @@ export default function Tracker() {
 
   // Fetch entries for the current day
   const formattedDate = format(currentDate, "yyyy-MM-dd");
-  const { data: entries, isLoading } = useEntries(formattedDate, formattedDate);
+  const { data: entries, isLoading: isLoadingEntries } = useEntries(formattedDate, formattedDate);
+  const { data: rawSchedule, isLoading: isLoadingSchedule } = useSchedule(formattedDate);
 
-  const schedule = getScheduleForDay(currentDate, weekA);
+  const schedule = useMemo(() => {
+    if (!rawSchedule) return [];
+    
+    const dayIndex = currentDate.getDay();
+    const currentWeekType = weekA ? "A" : "B";
+    
+    return rawSchedule
+      .filter(item => {
+        if (item.dayIndex !== dayIndex) return false;
+        if (item.weekType === "both") return true;
+        return item.weekType === currentWeekType;
+      })
+      .map(item => ({
+        id: item.subjectId,
+        subject: item.subjectName,
+        teacher: item.teacher,
+        room: item.room,
+        time: item.timeSlot,
+        type: item.itemType as 'single' | 'double' | 'break'
+      }));
+  }, [rawSchedule, currentDate, weekA]);
 
   const totalScore = schedule.reduce((acc, item) => {
     if (item.type === 'break') return acc;
@@ -31,10 +52,13 @@ export default function Tracker() {
     const entry = entries?.find(e => e.subjectId === i.id);
     return !entry?.isCancelled;
   }).length * 100;
+  
   const progress = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
 
   const handlePrevDay = () => setCurrentDate(subDays(currentDate, 1));
   const handleNextDay = () => setCurrentDate(addDays(currentDate, 1));
+
+  const isLoading = isLoadingEntries || isLoadingSchedule;
 
   return (
     <div className="min-h-screen bg-background pb-24">

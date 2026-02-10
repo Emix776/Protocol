@@ -44,6 +44,18 @@ export const api = {
       },
     }
   },
+  schedules: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/schedules' as const,
+      input: z.object({
+        date: z.string(), // ISO Date string to find the correct version
+      }),
+      responses: {
+        200: z.array(z.custom<typeof schedules.$inferSelect>()),
+      },
+    }
+  }
 };
 
 // ============================================
