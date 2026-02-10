@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertDailyEntrySchema, dailyEntries } from './schema';
+import { insertDailyEntrySchema, dailyEntries, schedules } from './schema';
 
 // ============================================
 // SHARED ERROR SCHEMAS
