@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, boolean, unique, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, unique, date, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 
 // === TABLE DEFINITIONS ===
 
@@ -12,7 +13,7 @@ export const timetableVersions = pgTable("timetable_versions", {
   id: serial("id").primaryKey(),
   effectiveDate: text("effective_date").notNull(), // YYYY-MM-DD
   name: text("name").notNull().default("Standardplan"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 /**
