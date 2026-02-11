@@ -60,6 +60,29 @@ export async function registerRoutes(
     }
   });
 
+  // GET all versions
+  app.get(api.schedules.versions.path, async (_req, res) => {
+    try {
+      const versions = await storage.getTimetableVersions();
+      res.json(versions);
+    } catch (err) {
+      console.error('Error fetching versions:', err);
+      res.status(500).json({ message: "Failed to fetch timetable versions" });
+    }
+  });
+
+  // DELETE version
+  app.delete(api.schedules.deleteVersion.path, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteTimetableVersion(id);
+      res.json({ message: "Version deleted successfully" });
+    } catch (err) {
+      console.error('Error deleting version:', err);
+      res.status(500).json({ message: "Failed to delete version" });
+    }
+  });
+
   // POST save schedule version
   app.post(api.schedules.save.path, async (req, res) => {
     try {

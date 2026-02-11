@@ -49,10 +49,24 @@ export const api = {
       method: 'GET' as const,
       path: '/api/schedules' as const,
       input: z.object({
-        date: z.string(), // ISO Date string to find the correct version
+        date: z.string().optional(), // ISO Date string to find the correct version
       }),
       responses: {
         200: z.array(z.custom<typeof schedules.$inferSelect>()),
+      },
+    },
+    versions: {
+      method: 'GET' as const,
+      path: '/api/timetable-versions' as const,
+      responses: {
+        200: z.array(z.custom<typeof timetableVersions.$inferSelect>()),
+      },
+    },
+    deleteVersion: {
+      method: 'DELETE' as const,
+      path: '/api/timetable-versions/:id' as const,
+      responses: {
+        200: z.object({ message: z.string() }),
       },
     },
     save: {

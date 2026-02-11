@@ -6,6 +6,8 @@ export interface IStorage {
   getEntries(from?: string, to?: string): Promise<DailyEntry[]>;
   upsertEntry(entry: InsertDailyEntry): Promise<DailyEntry>;
   getScheduleForDate(date: string): Promise<Schedule[]>;
+  getTimetableVersions(): Promise<TimetableVersion[]>;
+  deleteTimetableVersion(id: number): Promise<void>;
   saveScheduleVersion(data: { effectiveDate: string; name?: string; items: any[] }): Promise<number>;
 }
 
@@ -52,6 +54,17 @@ export class DatabaseStorage implements IStorage {
     return await db.select()
       .from(schedules)
       .where(eq(schedules.versionId, version.id));
+  }
+
+  async getTimetableVersions(): Promise<TimetableVersion[]> {
+    return await db.select()
+      .from(timetableVersions)
+      .orderBy(desc(timetableVersions.effectiveDate));
+  }
+
+  async deleteTimetableVersion(id: number): Promise<void> {
+    await db.delete(schedules).where(eq(schedules.versionId, id));
+    await db.delete(timetableVersions).where(eq(timetableVersions.id, id));
   }
 
   async saveScheduleVersion(data: { effectiveDate: string; name?: string; items: any[] }): Promise<number> {
