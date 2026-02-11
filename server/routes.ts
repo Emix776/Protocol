@@ -60,5 +60,23 @@ export async function registerRoutes(
     }
   });
 
+  // POST save schedule version
+  app.post(api.schedules.save.path, async (req, res) => {
+    try {
+      const input = api.schedules.save.input.parse(req.body);
+      const versionId = await storage.saveScheduleVersion(input);
+      res.json({ message: "Schedule version saved successfully", versionId });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      console.error('Error saving schedule version:', err);
+      res.status(500).json({ message: "Failed to save schedule version" });
+    }
+  });
+
   return httpServer;
 }

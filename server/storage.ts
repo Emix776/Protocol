@@ -6,6 +6,7 @@ export interface IStorage {
   getEntries(from?: string, to?: string): Promise<DailyEntry[]>;
   upsertEntry(entry: InsertDailyEntry): Promise<DailyEntry>;
   getScheduleForDate(date: string): Promise<Schedule[]>;
+  saveScheduleVersion(data: { effectiveDate: string; name?: string; items: any[] }): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -51,6 +52,23 @@ export class DatabaseStorage implements IStorage {
     return await db.select()
       .from(schedules)
       .where(eq(schedules.versionId, version.id));
+  }
+
+  async saveScheduleVersion(data: { effectiveDate: string; name?: string; items: any[] }): Promise<number> {
+    const [version] = await db.insert(timetableVersions)
+      .values({
+        effectiveDate: data.effectiveDate,
+        name: data.name || "Stundenplan " + data.effectiveDate,
+      })
+      .returning();
+
+    await db.insert(schedules)
+      .values(data.items.map(item => ({
+        ...item,
+        versionId: version.id,
+      })));
+
+    return version.id;
   }
 }
 

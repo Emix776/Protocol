@@ -54,6 +54,27 @@ export const api = {
       responses: {
         200: z.array(z.custom<typeof schedules.$inferSelect>()),
       },
+    },
+    save: {
+      method: 'POST' as const,
+      path: '/api/schedules' as const,
+      input: z.object({
+        effectiveDate: z.string(),
+        name: z.string().optional(),
+        items: z.array(z.object({
+          dayIndex: z.number(),
+          weekType: z.string(),
+          subjectId: z.string(),
+          subjectName: z.string(),
+          teacher: z.string(),
+          room: z.string(),
+          timeSlot: z.string(),
+          itemType: z.string(),
+        })),
+      }),
+      responses: {
+        200: z.object({ message: z.string(), versionId: z.number() }),
+      },
     }
   }
 };

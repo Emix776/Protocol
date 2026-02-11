@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BarChart3 } from "lucide-react";
+import { LayoutDashboard, BarChart3, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navigation() {
@@ -8,6 +8,7 @@ export function Navigation() {
   const links = [
     { href: "/", label: "Tracker", icon: LayoutDashboard },
     { href: "/stats", label: "Statistik", icon: BarChart3 },
+    { href: "/plan", label: "Plan", icon: CalendarRange },
   ];
 
   return (
